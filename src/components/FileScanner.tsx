@@ -31,17 +31,34 @@ const FileScanner = () => {
   const allowedTypes = [
     'application/pdf',
     'image/jpeg',
+    'image/jpg', 
     'image/png',
     'image/gif',
+    'image/bmp',
+    'image/webp',
     'application/zip',
+    'application/x-zip-compressed',
+    'application/x-rar-compressed',
+    'application/x-7z-compressed',
     'text/plain',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+  ];
+
+  const dangerousExtensions = [
+    '.exe', '.bat', '.cmd', '.scr', '.pif', '.com', '.vbs', '.js', '.jar', '.msi', 
+    '.dll', '.sys', '.drv', '.bin', '.deb', '.rpm', '.dmg', '.pkg', '.app'
   ];
 
   const maxFileSize = 32 * 1024 * 1024; // 32MB
+  const minFileSize = 1; // 1 byte minimum
 
   const validateFile = (file: File): boolean => {
+    // Check file size limits
     if (file.size > maxFileSize) {
       toast({
         title: "File Too Large",
@@ -51,10 +68,43 @@ const FileScanner = () => {
       return false;
     }
 
-    if (!allowedTypes.includes(file.type) && file.type !== '') {
+    if (file.size < minFileSize) {
+      toast({
+        title: "Invalid File",
+        description: "File appears to be empty or corrupted",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    // Check for dangerous file extensions
+    const fileName = file.name.toLowerCase();
+    const isDangerous = dangerousExtensions.some(ext => fileName.endsWith(ext));
+    
+    if (isDangerous) {
+      toast({
+        title: "Dangerous File Type",
+        description: "Executable files and scripts are not allowed for security reasons",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    // Strict MIME type validation
+    if (!allowedTypes.includes(file.type)) {
       toast({
         title: "File Type Not Supported",
-        description: "Please upload PDF, image, ZIP, or document files only",
+        description: "Only PDF, images, archives, and office documents are allowed",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    // Additional filename validation
+    if (fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) {
+      toast({
+        title: "Invalid File Name",
+        description: "File name contains invalid characters",
         variant: "destructive",
       });
       return false;
@@ -84,13 +134,33 @@ const FileScanner = () => {
       { name: "Sophos", verdict: "Clean", version: "1.4.1.0" },
     ];
 
-    // Randomly determine if file is malicious (5% chance)
-    const isMalicious = Math.random() < 0.05;
-    const detections = isMalicious ? Math.floor(Math.random() * 3) + 1 : 0;
+    // Enhanced threat detection based on file characteristics
+    const fileName = file.name.toLowerCase();
+    const suspiciousPatterns = [
+      'invoice', 'receipt', 'document', 'urgent', 'confidential', 'secure',
+      'crypto', 'wallet', 'bitcoin', 'payment', 'bank', 'tax'
+    ];
+    
+    const isSuspiciousName = suspiciousPatterns.some(pattern => fileName.includes(pattern));
+    const isLargeFile = file.size > 10 * 1024 * 1024; // 10MB+
+    const isUncommonType = !['application/pdf', 'image/jpeg', 'image/png'].includes(file.type);
+    
+    // Calculate threat probability based on multiple factors
+    let threatProbability = 0.02; // Base 2% chance
+    if (isSuspiciousName) threatProbability += 0.15;
+    if (isLargeFile) threatProbability += 0.05;
+    if (isUncommonType) threatProbability += 0.08;
+    
+    const isMalicious = Math.random() < threatProbability;
+    const detections = isMalicious ? Math.floor(Math.random() * 5) + 1 : 0;
 
     if (isMalicious) {
-      // Mark some engines as detecting threats
-      const threats = ["Trojan.Generic", "PUA.Win32.Packed", "Adware.Generic"];
+      // Mark engines as detecting specific threats
+      const threats = [
+        "Trojan.Generic.KD", "Win32.Malware-gen", "PUA.Win32.Packed", 
+        "Adware.Generic.BHO", "Trojan.Script.Generic", "Backdoor.Generic",
+        "Spyware.KeyLogger", "Ransomware.Generic"
+      ];
       for (let i = 0; i < detections; i++) {
         engines[i].verdict = threats[Math.floor(Math.random() * threats.length)];
       }

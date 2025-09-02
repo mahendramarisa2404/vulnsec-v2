@@ -26,9 +26,52 @@ const UrlScanner = () => {
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const { toast } = useToast();
 
+  const suspiciousDomains = [
+    'bit.ly', 'tinyurl.com', 'short.link', 't.co', 'goo.gl', 'ow.ly', 'is.gd',
+    'buff.ly', 'adf.ly', 'bl.ink', 'lnkd.in', 'smarturl.it', 'tiny.cc'
+  ];
+
+  const maliciousKeywords = [
+    'phishing', 'scam', 'fake', 'verify-account', 'suspended', 'security-alert',
+    'urgent-action', 'click-here', 'free-money', 'winner', 'congratulations',
+    'crypto-wallet', 'bitcoin-generator', 'hack', 'crack', 'keygen'
+  ];
+
   const validateUrl = (urlString: string): boolean => {
     try {
-      new URL(urlString);
+      const urlObj = new URL(urlString);
+      
+      // Only allow HTTP and HTTPS
+      if (urlObj.protocol !== 'http:' && urlObj.protocol !== 'https:') {
+        toast({
+          title: "Invalid Protocol",
+          description: "Only HTTP and HTTPS URLs are allowed",
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      // Block local/private IPs
+      const hostname = urlObj.hostname;
+      const localPatterns = [
+        /^localhost$/i,
+        /^127\./,
+        /^192\.168\./,
+        /^10\./,
+        /^172\.(1[6-9]|2[0-9]|3[01])\./,
+        /^0\./,
+        /^169\.254\./
+      ];
+
+      if (localPatterns.some(pattern => pattern.test(hostname))) {
+        toast({
+          title: "Invalid URL",
+          description: "Local and private IP addresses are not allowed",
+          variant: "destructive",
+        });
+        return false;
+      }
+
       return true;
     } catch {
       return false;
@@ -39,31 +82,58 @@ const UrlScanner = () => {
     // Simulate API delay
     await new Promise(resolve => setTimeout(resolve, 3000));
     
-    // Mock detection results
+    const urlObj = new URL(targetUrl);
+    const domain = urlObj.hostname.toLowerCase();
+    const fullUrl = targetUrl.toLowerCase();
+    
+    // Enhanced threat detection
+    const isSuspiciousDomain = suspiciousDomains.some(suspicious => domain.includes(suspicious));
+    const hasMaliciousKeywords = maliciousKeywords.some(keyword => fullUrl.includes(keyword));
+    const hasMultipleSubdomains = domain.split('.').length > 3;
+    const hasNumbersInDomain = /\d/.test(domain.replace(/\.(com|org|net|edu|gov)$/, ''));
+    const isNewTLD = /\.(tk|ml|ga|cf|click|download|zip)$/.test(domain);
+    
+    // Calculate threat probability
+    let threatProbability = 0.05; // Base 5% chance
+    if (isSuspiciousDomain) threatProbability += 0.4;
+    if (hasMaliciousKeywords) threatProbability += 0.6;
+    if (hasMultipleSubdomains) threatProbability += 0.2;
+    if (hasNumbersInDomain) threatProbability += 0.15;
+    if (isNewTLD) threatProbability += 0.3;
+    
+    // Mock detection results with more engines
     const engines = [
       { name: "Google Safe Browsing", verdict: "Clean", category: "Safe browsing" },
-      { name: "Phishing Database", verdict: "Clean", category: "Phishing" },
-      { name: "Malware Domain List", verdict: "Clean", category: "Malware" },
-      { name: "Spam404", verdict: "Clean", category: "Spam" },
-      { name: "Sucuri SiteCheck", verdict: "Clean", category: "Website scanner" },
-      { name: "Yandex Safebrowsing", verdict: "Clean", category: "Safe browsing" },
+      { name: "VirusTotal Community", verdict: "Clean", category: "Community" },
+      { name: "PhishTank", verdict: "Clean", category: "Phishing" },
       { name: "OpenPhish", verdict: "Clean", category: "Phishing" },
-      { name: "Fortinet", verdict: "Clean", category: "Category filter" },
+      { name: "Malware Domain List", verdict: "Clean", category: "Malware" },
+      { name: "Sucuri SiteCheck", verdict: "Clean", category: "Website scanner" },
+      { name: "Fortinet WebFilter", verdict: "Clean", category: "Category filter" },
+      { name: "Sophos Web Protection", verdict: "Clean", category: "Web protection" },
+      { name: "Trend Micro Site Safety", verdict: "Clean", category: "Site safety" },
+      { name: "Kaspersky URL Advisor", verdict: "Clean", category: "URL advisor" },
+      { name: "Bitdefender TrafficLight", verdict: "Clean", category: "Traffic analysis" },
+      { name: "Norton Safe Web", verdict: "Clean", category: "Safe browsing" },
     ];
 
-    // Randomly determine if URL is suspicious (10% chance)
-    const isSuspicious = Math.random() < 0.1;
-    const detections = isSuspicious ? Math.floor(Math.random() * 3) + 1 : 0;
+    const isMalicious = Math.random() < Math.min(threatProbability, 0.95);
+    const detections = isMalicious ? Math.floor(Math.random() * 6) + 1 : 0;
 
-    if (isSuspicious) {
-      // Mark some engines as detecting threats
+    if (isMalicious) {
+      // Mark engines with specific threat types
+      const threats = [
+        "Phishing", "Malware Distribution", "Suspicious Activity", 
+        "Fraudulent Site", "Trojan Host", "Adware/PUP", "Scam Site",
+        "Command & Control", "Botnet C&C"
+      ];
       for (let i = 0; i < detections; i++) {
-        engines[i].verdict = "Malicious";
+        engines[i].verdict = threats[Math.floor(Math.random() * threats.length)];
       }
     }
 
     let status: 'safe' | 'suspicious' | 'malicious' = 'safe';
-    if (detections > 2) status = 'malicious';
+    if (detections > 3) status = 'malicious';
     else if (detections > 0) status = 'suspicious';
 
     return {
