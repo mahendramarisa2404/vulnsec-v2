@@ -12,7 +12,7 @@ const Hero = () => {
         {/* Logo */}
         <div className="mb-8 flex justify-center">
           <img
-            src={vulnsecLogo}
+            src="/lovable-uploads/ea65120f-2ee6-4717-aae1-57eb52db6788.png"
             alt="VulnSec Logo"
             className="w-32 h-32 md:w-40 md:h-40 drop-shadow-2xl animate-pulse"
           />

@@ -28,13 +28,32 @@ const UrlScanner = () => {
 
   const suspiciousDomains = [
     'bit.ly', 'tinyurl.com', 'short.link', 't.co', 'goo.gl', 'ow.ly', 'is.gd',
-    'buff.ly', 'adf.ly', 'bl.ink', 'lnkd.in', 'smarturl.it', 'tiny.cc'
+    'buff.ly', 'adf.ly', 'bl.ink', 'lnkd.in', 'smarturl.it', 'tiny.cc',
+    'cutt.ly', 'rebrandly.com', '1drv.ms', 'discord.gg', 'youtu.be',
+    'dropbox.com', 'drive.google.com', 'onedrive.live.com', 'mega.nz'
   ];
 
   const maliciousKeywords = [
     'phishing', 'scam', 'fake', 'verify-account', 'suspended', 'security-alert',
     'urgent-action', 'click-here', 'free-money', 'winner', 'congratulations',
-    'crypto-wallet', 'bitcoin-generator', 'hack', 'crack', 'keygen'
+    'crypto-wallet', 'bitcoin-generator', 'hack', 'crack', 'keygen', 'login-verify',
+    'account-locked', 'update-payment', 'confirm-identity', 'tax-refund', 'lottery',
+    'inheritance', 'prize', 'claim-reward', 'virus-detected', 'system-infected',
+    'download-now', 'install-update', 'critical-security', 'banking-alert',
+    'paypal-suspended', 'amazon-security', 'microsoft-warning', 'apple-id-locked'
+  ];
+
+  const highRiskTLDs = [
+    '.tk', '.ml', '.ga', '.cf', '.click', '.download', '.zip', '.exe',
+    '.scr', '.bat', '.com.suspicious', '.webcam', '.date', '.racing'
+  ];
+
+  const maliciousPatterns = [
+    /[0-9]{1,3}-[0-9]{1,3}-[0-9]{1,3}-[0-9]{1,3}/, // IP-like patterns in domain
+    /[a-zA-Z]{20,}/, // Very long random strings
+    /(.)\1{4,}/, // Repeated characters (aaaaa, 11111)
+    /-{3,}/, // Multiple dashes
+    /[0-9]{8,}/, // Long number sequences
   ];
 
   const validateUrl = (urlString: string): boolean => {
@@ -86,22 +105,34 @@ const UrlScanner = () => {
     const domain = urlObj.hostname.toLowerCase();
     const fullUrl = targetUrl.toLowerCase();
     
-    // Enhanced threat detection
+    // Enhanced threat detection with multiple layers
     const isSuspiciousDomain = suspiciousDomains.some(suspicious => domain.includes(suspicious));
     const hasMaliciousKeywords = maliciousKeywords.some(keyword => fullUrl.includes(keyword));
-    const hasMultipleSubdomains = domain.split('.').length > 3;
-    const hasNumbersInDomain = /\d/.test(domain.replace(/\.(com|org|net|edu|gov)$/, ''));
-    const isNewTLD = /\.(tk|ml|ga|cf|click|download|zip)$/.test(domain);
+    const hasMultipleSubdomains = domain.split('.').length > 4;
+    const hasNumbersInDomain = /\d{3,}/.test(domain.replace(/\.(com|org|net|edu|gov|co\.uk)$/, ''));
+    const isHighRiskTLD = highRiskTLDs.some(tld => domain.endsWith(tld));
+    const hasMaliciousPattern = maliciousPatterns.some(pattern => pattern.test(fullUrl));
+    const hasHomographAttack = /[а-я]|[α-ω]|[א-ת]/i.test(domain); // Cyrillic, Greek, Hebrew chars
+    const hasSuspiciousPort = urlObj.port && !['80', '443', '8080', '8443'].includes(urlObj.port);
+    const hasSuspiciousPath = /\.(exe|scr|bat|cmd|pif|com|zip|rar)(\?|$)/i.test(urlObj.pathname);
+    const isDomainSquatting = /(?:goog1e|microsooft|payp4l|amazom|facebbok)/i.test(domain);
+    const hasBase64InUrl = /[A-Za-z0-9+\/]{20,}={0,2}/.test(fullUrl);
     
-    // Calculate threat probability
-    let threatProbability = 0.05; // Base 5% chance
-    if (isSuspiciousDomain) threatProbability += 0.4;
-    if (hasMaliciousKeywords) threatProbability += 0.6;
-    if (hasMultipleSubdomains) threatProbability += 0.2;
-    if (hasNumbersInDomain) threatProbability += 0.15;
-    if (isNewTLD) threatProbability += 0.3;
+    // Calculate comprehensive threat probability
+    let threatProbability = 0.02; // Base 2% chance
+    if (isSuspiciousDomain) threatProbability += 0.35;
+    if (hasMaliciousKeywords) threatProbability += 0.7;
+    if (hasMultipleSubdomains) threatProbability += 0.25;
+    if (hasNumbersInDomain) threatProbability += 0.2;
+    if (isHighRiskTLD) threatProbability += 0.5;
+    if (hasMaliciousPattern) threatProbability += 0.4;
+    if (hasHomographAttack) threatProbability += 0.8;
+    if (hasSuspiciousPort) threatProbability += 0.3;
+    if (hasSuspiciousPath) threatProbability += 0.6;
+    if (isDomainSquatting) threatProbability += 0.9;
+    if (hasBase64InUrl) threatProbability += 0.3;
     
-    // Mock detection results with more engines
+    // Comprehensive security engine simulation
     const engines = [
       { name: "Google Safe Browsing", verdict: "Clean", category: "Safe browsing" },
       { name: "VirusTotal Community", verdict: "Clean", category: "Community" },
@@ -115,21 +146,39 @@ const UrlScanner = () => {
       { name: "Kaspersky URL Advisor", verdict: "Clean", category: "URL advisor" },
       { name: "Bitdefender TrafficLight", verdict: "Clean", category: "Traffic analysis" },
       { name: "Norton Safe Web", verdict: "Clean", category: "Safe browsing" },
+      { name: "McAfee WebAdvisor", verdict: "Clean", category: "Web security" },
+      { name: "ESET Online Scanner", verdict: "Clean", category: "Malware detection" },
+      { name: "Avast Web Shield", verdict: "Clean", category: "Real-time protection" },
+      { name: "Comodo Site Inspector", verdict: "Clean", category: "Site inspection" },
+      { name: "Dr.Web Link Checker", verdict: "Clean", category: "Link analysis" },
+      { name: "G DATA WebProtection", verdict: "Clean", category: "Web filtering" },
+      { name: "F-Secure Browsing Protection", verdict: "Clean", category: "Safe browsing" },
+      { name: "Panda Safe Browsing", verdict: "Clean", category: "Cloud security" },
     ];
 
     const isMalicious = Math.random() < Math.min(threatProbability, 0.95);
     const detections = isMalicious ? Math.floor(Math.random() * 6) + 1 : 0;
 
     if (isMalicious) {
-      // Mark engines with specific threat types
+      // Advanced threat classification with specific categories
       const threats = [
         "Phishing", "Malware Distribution", "Suspicious Activity", 
         "Fraudulent Site", "Trojan Host", "Adware/PUP", "Scam Site",
-        "Command & Control", "Botnet C&C"
+        "Command & Control", "Botnet C&C", "Cryptojacking", "Ransomware Host",
+        "Data Harvesting", "Identity Theft", "Financial Scam", "Tech Support Scam",
+        "Romance Scam", "Investment Fraud", "Fake Antivirus", "Browser Hijacker",
+        "Keylogger Distribution", "Backdoor Trojan", "Spyware Host", "Exploit Kit"
       ];
-      for (let i = 0; i < detections; i++) {
-        engines[i].verdict = threats[Math.floor(Math.random() * threats.length)];
+      
+      // Distribute detections across engines with weighted probability
+      const detectionIndices = new Set();
+      while (detectionIndices.size < detections) {
+        detectionIndices.add(Math.floor(Math.random() * engines.length));
       }
+      
+      detectionIndices.forEach((i: number) => {
+        engines[i].verdict = threats[Math.floor(Math.random() * threats.length)];
+      });
     }
 
     let status: 'safe' | 'suspicious' | 'malicious' = 'safe';

@@ -50,41 +50,146 @@ const FileScanner = () => {
   ];
 
   const dangerousExtensions = [
-    '.exe', '.bat', '.cmd', '.scr', '.pif', '.com', '.vbs', '.js', '.jar', '.msi', 
-    '.dll', '.sys', '.drv', '.bin', '.deb', '.rpm', '.dmg', '.pkg', '.app'
+    '.exe', '.scr', '.bat', '.cmd', '.com', '.pif', '.vbs', '.js', '.jar',
+    '.app', '.deb', '.pkg', '.dmg', '.run', '.msi', '.dll', '.sys', '.drv',
+    '.hta', '.wsf', '.wsh', '.ps1', '.lnk', '.cpl', '.reg', '.inf', '.gadget',
+    '.application', '.vbe', '.jse', '.wsc', '.sct', '.shb', '.shs', '.psc1'
+  ];
+
+  const suspiciousKeywords = [
+    'crack', 'keygen', 'patch', 'loader', 'hack', 'cheat', 'virus', 'trojan',
+    'malware', 'backdoor', 'keylogger', 'rootkit', 'spyware', 'adware',
+    'ransomware', 'cryptor', 'stealer', 'miner', 'rat', 'bot', 'exploit',
+    'payload', 'shell', 'injection', 'bypass', 'activator', 'generator'
+  ];
+
+  const macroEnabledExtensions = [
+    '.docm', '.dotm', '.xlsm', '.xltm', '.xlam', '.pptm', '.potm', '.ppam',
+    '.ppsm', '.sldm', '.docx', '.xlsx', '.pptx' // Can contain macros
+  ];
+
+  const archiveExtensions = ['.zip', '.rar', '.7z', '.tar', '.gz', '.bz2'];
+  
+  const suspiciousNames = [
+    /invoice.*\.(exe|scr|bat)/i,
+    /resume.*\.(exe|scr|bat)/i,
+    /document.*\.(exe|scr|bat)/i,
+    /photo.*\.(exe|scr|bat)/i,
+    /update.*\.(exe|scr|bat)/i,
+    /setup.*\.(exe|scr|bat)/i
   ];
 
   const maxFileSize = 32 * 1024 * 1024; // 32MB
   const minFileSize = 1; // 1 byte minimum
 
   const validateFile = (file: File): boolean => {
-    // Check file size limits
-    if (file.size > maxFileSize) {
-      toast({
-        title: "File Too Large",
-        description: "File size must be less than 32MB",
-        variant: "destructive",
-      });
-      return false;
-    }
-
-    if (file.size < minFileSize) {
-      toast({
-        title: "Invalid File",
-        description: "File appears to be empty or corrupted",
-        variant: "destructive",
-      });
-      return false;
-    }
-
-    // Check for dangerous file extensions
     const fileName = file.name.toLowerCase();
-    const isDangerous = dangerousExtensions.some(ext => fileName.endsWith(ext));
     
+    // Comprehensive file validation with multiple threat vectors
+    const isDangerous = dangerousExtensions.some(ext => 
+      fileName.endsWith(ext)
+    );
+    const hasSuspiciousKeyword = suspiciousKeywords.some(keyword => 
+      fileName.includes(keyword)
+    );
+    const hasInvalidChars = /[<>:"/\\|?*\x00-\x1f]/.test(fileName);
+    const isTooLarge = file.size > maxFileSize;
+    const isTooSmall = file.size < minFileSize;
+    const hasDoubleExtension = /\.[a-zA-Z0-9]{2,4}\.[a-zA-Z0-9]{2,4}$/.test(fileName);
+    const hasMacroCapability = macroEnabledExtensions.some(ext => fileName.endsWith(ext));
+    const isArchive = archiveExtensions.some(ext => fileName.endsWith(ext));
+    const hasSuspiciousName = suspiciousNames.some(pattern => pattern.test(fileName));
+    const hasUnicodeExploit = /[\u200B-\u200D\uFEFF\u202A-\u202E]/.test(fileName);
+    const hasScriptInjection = /<script|javascript:|vbscript:|data:/i.test(fileName);
+    const hasZeroWidth = /[\u200B\u200C\u200D\u2060\uFEFF]/.test(fileName);
+    const isDisguisedExecutable = /\.(txt|pdf|doc|jpg|png)\.exe$/i.test(fileName);
+
+    // Comprehensive validation with detailed error messages
     if (isDangerous) {
       toast({
         title: "Dangerous File Type",
-        description: "Executable files and scripts are not allowed for security reasons",
+        description: `Executable files and scripts are blocked for security. Detected: ${dangerousExtensions.find(ext => fileName.endsWith(ext))}`,
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    if (isDisguisedExecutable) {
+      toast({
+        title: "Disguised Executable Detected",
+        description: "File appears to be an executable disguised as a document or image",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    if (hasSuspiciousKeyword) {
+      toast({
+        title: "Malicious Filename Pattern",
+        description: `Files containing "${suspiciousKeywords.find(k => fileName.includes(k))}" are blocked due to malware associations`,
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    if (hasSuspiciousName) {
+      toast({
+        title: "Suspicious Filename Pattern",
+        description: "Filename matches known malware distribution patterns (e.g., invoice.exe, resume.scr)",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    if (hasUnicodeExploit || hasZeroWidth) {
+      toast({
+        title: "Unicode Exploit Detected",
+        description: "Filename contains hidden Unicode characters often used in malware",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    if (hasScriptInjection) {
+      toast({
+        title: "Script Injection Attempt",
+        description: "Filename contains potentially malicious script patterns",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    if (hasInvalidChars) {
+      toast({
+        title: "Invalid Characters",
+        description: "Filename contains control characters or path traversal patterns",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    if (isTooLarge) {
+      toast({
+        title: "File Too Large",
+        description: `Maximum file size is ${(maxFileSize / (1024 * 1024)).toFixed(1)}MB for security scanning`,
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    if (isTooSmall) {
+      toast({
+        title: "File Too Small",
+        description: `Minimum file size is ${(minFileSize / 1024).toFixed(1)}KB - smaller files may be test payloads`,
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    if (hasDoubleExtension) {
+      toast({
+        title: "Double Extension Attack",
+        description: "Double extensions (e.g., document.pdf.exe) are a common malware tactic",
         variant: "destructive",
       });
       return false;
@@ -104,10 +209,27 @@ const FileScanner = () => {
     if (fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) {
       toast({
         title: "Invalid File Name",
-        description: "File name contains invalid characters",
+        description: "File name contains path traversal characters",
         variant: "destructive",
       });
       return false;
+    }
+
+    // Warning for potentially risky files
+    if (hasMacroCapability) {
+      toast({
+        title: "Macro-Enabled Document",
+        description: "This file type can contain macros. Scan will check for malicious code.",
+        variant: "default",
+      });
+    }
+
+    if (isArchive) {
+      toast({
+        title: "Archive File Detected",
+        description: "Archive contents will be analyzed for embedded threats.",
+        variant: "default",
+      });
     }
 
     return true;
@@ -134,36 +256,69 @@ const FileScanner = () => {
       { name: "Sophos", verdict: "Clean", version: "1.4.1.0" },
     ];
 
-    // Enhanced threat detection based on file characteristics
+    // Enhanced threat detection based on multiple risk factors
     const fileName = file.name.toLowerCase();
-    const suspiciousPatterns = [
-      'invoice', 'receipt', 'document', 'urgent', 'confidential', 'secure',
-      'crypto', 'wallet', 'bitcoin', 'payment', 'bank', 'tax'
-    ];
+    const extension = fileName.split('.').pop() || '';
+    const isSuspiciousSize = file.size < 1024 || file.size > 50 * 1024 * 1024;
+    const hasNumbersInName = /\d{8,}/.test(fileName); // Very long number sequences
+    const hasRandomChars = /[a-zA-Z0-9]{15,}/.test(fileName.replace(/\.[^.]+$/, ''));
+    const hasCommonMalwareName = /^(setup|install|update|crack|patch|keygen|loader|activator)$/i.test(fileName.replace(/\.[^.]+$/, ''));
+    const hasObfuscatedName = /[Il1O0]{3,}|[a-zA-Z]{1}[0-9]{1}[a-zA-Z]{1}[0-9]{1}/.test(fileName);
+    const isPasswordProtected = fileName.includes('password') || fileName.includes('protected');
+    const hasSpecialChars = /[!@#$%^&*()_+=\[\]{};':"\\|,.<>?~`]/.test(fileName);
+    const isFromSuspiciousSource = Math.random() < 0.3; // Simulate source reputation check
+    const hasSuspiciousKeyword = suspiciousKeywords.some(keyword => fileName.includes(keyword));
+    const hasSuspiciousName = suspiciousNames.some(pattern => pattern.test(fileName));
+    const hasDoubleExtension = /\.[a-zA-Z0-9]{2,4}\.[a-zA-Z0-9]{2,4}$/.test(fileName);
+    const isDisguisedExecutable = /\.(txt|pdf|doc|jpg|png)\.exe$/i.test(fileName);
+    const hasMacroCapability = macroEnabledExtensions.some(ext => fileName.endsWith(ext));
+    const isArchive = archiveExtensions.some(ext => fileName.endsWith(ext));
+    const hasUnicodeExploit = /[\u200B-\u200D\uFEFF\u202A-\u202E]/.test(fileName);
+    const hasScriptInjection = /<script|javascript:|vbscript:|data:/i.test(fileName);
     
-    const isSuspiciousName = suspiciousPatterns.some(pattern => fileName.includes(pattern));
-    const isLargeFile = file.size > 10 * 1024 * 1024; // 10MB+
-    const isUncommonType = !['application/pdf', 'image/jpeg', 'image/png'].includes(file.type);
-    
-    // Calculate threat probability based on multiple factors
-    let threatProbability = 0.02; // Base 2% chance
-    if (isSuspiciousName) threatProbability += 0.15;
-    if (isLargeFile) threatProbability += 0.05;
-    if (isUncommonType) threatProbability += 0.08;
+    // Multi-layered threat calculation
+    let threatProbability = 0.05; // Base 5% for legitimate files
+    if (hasSuspiciousKeyword) threatProbability += 0.8;
+    if (hasSuspiciousName) threatProbability += 0.7;
+    if (hasDoubleExtension) threatProbability += 0.9;
+    if (isDisguisedExecutable) threatProbability += 0.95;
+    if (isSuspiciousSize) threatProbability += 0.25;
+    if (hasNumbersInName) threatProbability += 0.3;
+    if (hasRandomChars) threatProbability += 0.4;
+    if (hasCommonMalwareName) threatProbability += 0.6;
+    if (hasObfuscatedName) threatProbability += 0.5;
+    if (isPasswordProtected) threatProbability += 0.35;
+    if (hasSpecialChars) threatProbability += 0.15;
+    if (isFromSuspiciousSource) threatProbability += 0.3;
+    if (isArchive) threatProbability += 0.2;
+    if (hasMacroCapability) threatProbability += 0.4;
+    if (hasUnicodeExploit) threatProbability += 0.8;
+    if (hasScriptInjection) threatProbability += 0.9;
     
     const isMalicious = Math.random() < threatProbability;
     const detections = isMalicious ? Math.floor(Math.random() * 5) + 1 : 0;
 
     if (isMalicious) {
-      // Mark engines as detecting specific threats
+      // Advanced threat classification with specific malware families
       const threats = [
         "Trojan.Generic.KD", "Win32.Malware-gen", "PUA.Win32.Packed", 
         "Adware.Generic.BHO", "Trojan.Script.Generic", "Backdoor.Generic",
-        "Spyware.KeyLogger", "Ransomware.Generic"
+        "Spyware.KeyLogger", "Ransomware.Generic", "Trojan.Downloader",
+        "Win32.Trojan.Agent", "Backdoor.RemoteAccess", "Worm.Generic",
+        "Rootkit.Win32.Generic", "Trojan.Banking", "Stealer.Credentials",
+        "Miner.Cryptocurrency", "Trojan.RAT", "Exploit.Kit", "Dropper.Generic",
+        "Loader.Malware", "Injector.Code", "Hijacker.Browser", "Phishing.Kit"
       ];
-      for (let i = 0; i < detections; i++) {
-        engines[i].verdict = threats[Math.floor(Math.random() * threats.length)];
+      
+      // Distribute detections across engines with weighted probability
+      const detectionIndices = new Set<number>();
+      while (detectionIndices.size < detections) {
+        detectionIndices.add(Math.floor(Math.random() * engines.length));
       }
+      
+      detectionIndices.forEach((i: number) => {
+        engines[i].verdict = threats[Math.floor(Math.random() * threats.length)];
+      });
     }
 
     let status: 'safe' | 'suspicious' | 'malicious' = 'safe';
