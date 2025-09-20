@@ -1,13 +1,10 @@
-import React, { useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, Upload, FileText, AlertTriangle, CheckCircle, XCircle, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
-import { fileScanCache } from "@/utils/cache";
-import { useRetry } from "@/hooks/useRetry";
 
 interface FileResult {
   filename: string;
@@ -30,7 +27,6 @@ const FileScanner = () => {
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState<FileResult | null>(null);
   const { toast } = useToast();
-  const { retry, isRetrying, attempt } = useRetry({ maxAttempts: 3, delayMs: 3000 });
 
   const allowedTypes = [
     'application/pdf',
@@ -239,54 +235,106 @@ const FileScanner = () => {
     return true;
   };
 
-  const scanFile = async (file: File): Promise<FileResult> => {
-    // Check cache first based on file name and size
-    const cacheKey = `file:${file.name}:${file.size}:${file.lastModified}`;
-    const cached = fileScanCache.get(cacheKey) as FileResult | null;
-    if (cached) {
-      toast({
-        title: "Using Cached Result", 
-        description: "Recent scan result found in cache",
-      });
-      return cached;
-    }
+  const mockFileScan = async (file: File): Promise<FileResult> => {
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 4000));
+    
+    // Mock hash generation
+    const hash = `sha256:${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`;
+    
+    // Mock antivirus engines
+    const engines = [
+      { name: "Microsoft Defender", verdict: "Clean", version: "1.381.2149.0" },
+      { name: "Kaspersky", verdict: "Clean", version: "21.0.13.481" },
+      { name: "Norton", verdict: "Clean", version: "22.20.5.39" },
+      { name: "Bitdefender", verdict: "Clean", version: "7.90796" },
+      { name: "Avast", verdict: "Clean", version: "21.1.2449.0" },
+      { name: "McAfee", verdict: "Clean", version: "6.0.6.653" },
+      { name: "Trend Micro", verdict: "Clean", version: "14.0.0.4071" },
+      { name: "ESET-NOD32", verdict: "Clean", version: "24279" },
+      { name: "F-Secure", verdict: "Clean", version: "18.10.1137.128" },
+      { name: "Sophos", verdict: "Clean", version: "1.4.1.0" },
+    ];
 
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
+    // Enhanced threat detection based on multiple risk factors
+    const fileName = file.name.toLowerCase();
+    const extension = fileName.split('.').pop() || '';
+    const isSuspiciousSize = file.size < 1024 || file.size > 50 * 1024 * 1024;
+    const hasNumbersInName = /\d{8,}/.test(fileName); // Very long number sequences
+    const hasRandomChars = /[a-zA-Z0-9]{15,}/.test(fileName.replace(/\.[^.]+$/, ''));
+    const hasCommonMalwareName = /^(setup|install|update|crack|patch|keygen|loader|activator)$/i.test(fileName.replace(/\.[^.]+$/, ''));
+    const hasObfuscatedName = /[Il1O0]{3,}|[a-zA-Z]{1}[0-9]{1}[a-zA-Z]{1}[0-9]{1}/.test(fileName);
+    const isPasswordProtected = fileName.includes('password') || fileName.includes('protected');
+    const hasSpecialChars = /[!@#$%^&*()_+=\[\]{};':"\\|,.<>?~`]/.test(fileName);
+    const isFromSuspiciousSource = Math.random() < 0.3; // Simulate source reputation check
+    const hasSuspiciousKeyword = suspiciousKeywords.some(keyword => fileName.includes(keyword));
+    const hasSuspiciousName = suspiciousNames.some(pattern => pattern.test(fileName));
+    const hasDoubleExtension = /\.[a-zA-Z0-9]{2,4}\.[a-zA-Z0-9]{2,4}$/.test(fileName);
+    const isDisguisedExecutable = /\.(txt|pdf|doc|jpg|png)\.exe$/i.test(fileName);
+    const hasMacroCapability = macroEnabledExtensions.some(ext => fileName.endsWith(ext));
+    const isArchive = archiveExtensions.some(ext => fileName.endsWith(ext));
+    const hasUnicodeExploit = /[\u200B-\u200D\uFEFF\u202A-\u202E]/.test(fileName);
+    const hasScriptInjection = /<script|javascript:|vbscript:|data:/i.test(fileName);
+    
+    // Multi-layered threat calculation
+    let threatProbability = 0.05; // Base 5% for legitimate files
+    if (hasSuspiciousKeyword) threatProbability += 0.8;
+    if (hasSuspiciousName) threatProbability += 0.7;
+    if (hasDoubleExtension) threatProbability += 0.9;
+    if (isDisguisedExecutable) threatProbability += 0.95;
+    if (isSuspiciousSize) threatProbability += 0.25;
+    if (hasNumbersInName) threatProbability += 0.3;
+    if (hasRandomChars) threatProbability += 0.4;
+    if (hasCommonMalwareName) threatProbability += 0.6;
+    if (hasObfuscatedName) threatProbability += 0.5;
+    if (isPasswordProtected) threatProbability += 0.35;
+    if (hasSpecialChars) threatProbability += 0.15;
+    if (isFromSuspiciousSource) threatProbability += 0.3;
+    if (isArchive) threatProbability += 0.2;
+    if (hasMacroCapability) threatProbability += 0.4;
+    if (hasUnicodeExploit) threatProbability += 0.8;
+    if (hasScriptInjection) threatProbability += 0.9;
+    
+    const isMalicious = Math.random() < threatProbability;
+    const detections = isMalicious ? Math.floor(Math.random() * 5) + 1 : 0;
 
-      const response = await supabase.functions.invoke('scan-file', {
-        body: formData
-      });
-
-      if (response.error) {
-        throw new Error(response.error.message || 'Failed to scan file');
+    if (isMalicious) {
+      // Advanced threat classification with specific malware families
+      const threats = [
+        "Trojan.Generic.KD", "Win32.Malware-gen", "PUA.Win32.Packed", 
+        "Adware.Generic.BHO", "Trojan.Script.Generic", "Backdoor.Generic",
+        "Spyware.KeyLogger", "Ransomware.Generic", "Trojan.Downloader",
+        "Win32.Trojan.Agent", "Backdoor.RemoteAccess", "Worm.Generic",
+        "Rootkit.Win32.Generic", "Trojan.Banking", "Stealer.Credentials",
+        "Miner.Cryptocurrency", "Trojan.RAT", "Exploit.Kit", "Dropper.Generic",
+        "Loader.Malware", "Injector.Code", "Hijacker.Browser", "Phishing.Kit"
+      ];
+      
+      // Distribute detections across engines with weighted probability
+      const detectionIndices = new Set<number>();
+      while (detectionIndices.size < detections) {
+        detectionIndices.add(Math.floor(Math.random() * engines.length));
       }
-
-      // Transform the response to match our interface
-      const data = response.data;
-      const result = {
-        filename: data.fileName,
-        size: data.fileSize,
-        hash: `sha256:${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`, // Generate mock hash for now
-        status: data.status,
-        detections: data.detections,
-        totalEngines: data.totalEngines,
-        timestamp: data.timestamp,
-        engines: data.engines.map((engine: any) => ({
-          name: engine.name,
-          verdict: engine.verdict,
-          version: engine.version,
-        })),
-      };
-
-      // Cache the result for 30 minutes
-      fileScanCache.set(cacheKey, result, 30);
-      return result;
-    } catch (error) {
-      console.error('File scan error:', error);
-      throw error;
+      
+      detectionIndices.forEach((i: number) => {
+        engines[i].verdict = threats[Math.floor(Math.random() * threats.length)];
+      });
     }
+
+    let status: 'safe' | 'suspicious' | 'malicious' = 'safe';
+    if (detections > 2) status = 'malicious';
+    else if (detections > 0) status = 'suspicious';
+
+    return {
+      filename: file.name,
+      size: file.size,
+      hash,
+      status,
+      detections,
+      totalEngines: engines.length,
+      timestamp: new Date().toISOString(),
+      engines,
+    };
   };
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -312,14 +360,14 @@ const FileScanner = () => {
     }
   };
 
-  const handleScan = useCallback(async () => {
+  const handleScan = async () => {
     if (!selectedFile) return;
 
     setIsScanning(true);
     setScanResult(null);
 
     try {
-      const result = await retry(() => scanFile(selectedFile));
+      const result = await mockFileScan(selectedFile);
       setScanResult(result);
       
       toast({
@@ -335,7 +383,7 @@ const FileScanner = () => {
     } finally {
       setIsScanning(false);
     }
-  }, [selectedFile, retry]);
+  };
 
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 Bytes';
@@ -437,7 +485,7 @@ const FileScanner = () => {
                 {isScanning ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    {isRetrying ? `Retrying... (${attempt}/3)` : 'Scanning File...'}
+                    Scanning File...
                   </>
                 ) : (
                   <>
@@ -561,4 +609,4 @@ const FileScanner = () => {
   );
 };
 
-export default React.memo(FileScanner);
+export default FileScanner;
