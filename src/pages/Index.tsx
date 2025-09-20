@@ -5,6 +5,7 @@ import SecurityWarning from "@/components/SecurityWarning";
 import UrlScanner from "@/components/UrlScanner";
 import FileScanner from "@/components/FileScanner";
 import SecurityTips from "@/components/SecurityTips";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import { Link, Upload } from "lucide-react";
 
 const Index = () => {
@@ -59,11 +60,15 @@ const Index = () => {
                 </TabsList>
                 
                 <TabsContent value="url" className="space-y-6">
-                  <UrlScanner />
+                  <ErrorBoundary>
+                    <UrlScanner />
+                  </ErrorBoundary>
                 </TabsContent>
                 
                 <TabsContent value="file" className="space-y-6">
-                  <FileScanner />
+                  <ErrorBoundary>
+                    <FileScanner />
+                  </ErrorBoundary>
                 </TabsContent>
               </Tabs>
             )}

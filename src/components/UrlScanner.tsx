@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,6 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, Link, Shield, AlertTriangle, CheckCircle, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { urlScanCache } from "@/utils/cache";
+import { useRetry } from "@/hooks/useRetry";
 
 interface ScanResult {
   url: string;
@@ -25,6 +28,7 @@ const UrlScanner = () => {
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const { toast } = useToast();
+  const { retry, isRetrying, attempt } = useRetry({ maxAttempts: 3, delayMs: 2000 });
 
   const suspiciousDomains = [
     'bit.ly', 'tinyurl.com', 'short.link', 't.co', 'goo.gl', 'ow.ly', 'is.gd',
@@ -97,105 +101,37 @@ const UrlScanner = () => {
     }
   };
 
-  const mockScan = async (targetUrl: string): Promise<ScanResult> => {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    
-    const urlObj = new URL(targetUrl);
-    const domain = urlObj.hostname.toLowerCase();
-    const fullUrl = targetUrl.toLowerCase();
-    
-    // Enhanced threat detection with multiple layers
-    const isSuspiciousDomain = suspiciousDomains.some(suspicious => domain.includes(suspicious));
-    const hasMaliciousKeywords = maliciousKeywords.some(keyword => fullUrl.includes(keyword));
-    const hasMultipleSubdomains = domain.split('.').length > 4;
-    const hasNumbersInDomain = /\d{3,}/.test(domain.replace(/\.(com|org|net|edu|gov|co\.uk)$/, ''));
-    const isHighRiskTLD = highRiskTLDs.some(tld => domain.endsWith(tld));
-    const hasMaliciousPattern = maliciousPatterns.some(pattern => pattern.test(fullUrl));
-    const hasHomographAttack = /[а-я]|[α-ω]|[א-ת]/i.test(domain); // Cyrillic, Greek, Hebrew chars
-    const hasSuspiciousPort = urlObj.port && !['80', '443', '8080', '8443'].includes(urlObj.port);
-    const hasSuspiciousPath = /\.(exe|scr|bat|cmd|pif|com|zip|rar)(\?|$)/i.test(urlObj.pathname);
-    const isDomainSquatting = /(?:goog1e|microsooft|payp4l|amazom|facebbok)/i.test(domain);
-    const hasBase64InUrl = /[A-Za-z0-9+\/]{20,}={0,2}/.test(fullUrl);
-    
-    // Calculate comprehensive threat probability
-    let threatProbability = 0.02; // Base 2% chance
-    if (isSuspiciousDomain) threatProbability += 0.35;
-    if (hasMaliciousKeywords) threatProbability += 0.7;
-    if (hasMultipleSubdomains) threatProbability += 0.25;
-    if (hasNumbersInDomain) threatProbability += 0.2;
-    if (isHighRiskTLD) threatProbability += 0.5;
-    if (hasMaliciousPattern) threatProbability += 0.4;
-    if (hasHomographAttack) threatProbability += 0.8;
-    if (hasSuspiciousPort) threatProbability += 0.3;
-    if (hasSuspiciousPath) threatProbability += 0.6;
-    if (isDomainSquatting) threatProbability += 0.9;
-    if (hasBase64InUrl) threatProbability += 0.3;
-    
-    // Comprehensive security engine simulation
-    const engines = [
-      { name: "Google Safe Browsing", verdict: "Clean", category: "Safe browsing" },
-      { name: "VirusTotal Community", verdict: "Clean", category: "Community" },
-      { name: "PhishTank", verdict: "Clean", category: "Phishing" },
-      { name: "OpenPhish", verdict: "Clean", category: "Phishing" },
-      { name: "Malware Domain List", verdict: "Clean", category: "Malware" },
-      { name: "Sucuri SiteCheck", verdict: "Clean", category: "Website scanner" },
-      { name: "Fortinet WebFilter", verdict: "Clean", category: "Category filter" },
-      { name: "Sophos Web Protection", verdict: "Clean", category: "Web protection" },
-      { name: "Trend Micro Site Safety", verdict: "Clean", category: "Site safety" },
-      { name: "Kaspersky URL Advisor", verdict: "Clean", category: "URL advisor" },
-      { name: "Bitdefender TrafficLight", verdict: "Clean", category: "Traffic analysis" },
-      { name: "Norton Safe Web", verdict: "Clean", category: "Safe browsing" },
-      { name: "McAfee WebAdvisor", verdict: "Clean", category: "Web security" },
-      { name: "ESET Online Scanner", verdict: "Clean", category: "Malware detection" },
-      { name: "Avast Web Shield", verdict: "Clean", category: "Real-time protection" },
-      { name: "Comodo Site Inspector", verdict: "Clean", category: "Site inspection" },
-      { name: "Dr.Web Link Checker", verdict: "Clean", category: "Link analysis" },
-      { name: "G DATA WebProtection", verdict: "Clean", category: "Web filtering" },
-      { name: "F-Secure Browsing Protection", verdict: "Clean", category: "Safe browsing" },
-      { name: "Panda Safe Browsing", verdict: "Clean", category: "Cloud security" },
-    ];
-
-    const isMalicious = Math.random() < Math.min(threatProbability, 0.95);
-    const detections = isMalicious ? Math.floor(Math.random() * 6) + 1 : 0;
-
-    if (isMalicious) {
-      // Advanced threat classification with specific categories
-      const threats = [
-        "Phishing", "Malware Distribution", "Suspicious Activity", 
-        "Fraudulent Site", "Trojan Host", "Adware/PUP", "Scam Site",
-        "Command & Control", "Botnet C&C", "Cryptojacking", "Ransomware Host",
-        "Data Harvesting", "Identity Theft", "Financial Scam", "Tech Support Scam",
-        "Romance Scam", "Investment Fraud", "Fake Antivirus", "Browser Hijacker",
-        "Keylogger Distribution", "Backdoor Trojan", "Spyware Host", "Exploit Kit"
-      ];
-      
-      // Distribute detections across engines with weighted probability
-      const detectionIndices = new Set();
-      while (detectionIndices.size < detections) {
-        detectionIndices.add(Math.floor(Math.random() * engines.length));
-      }
-      
-      detectionIndices.forEach((i: number) => {
-        engines[i].verdict = threats[Math.floor(Math.random() * threats.length)];
+  const scanUrl = async (targetUrl: string): Promise<ScanResult> => {
+    // Check cache first
+    const cacheKey = `url:${targetUrl}`;
+    const cached = urlScanCache.get(cacheKey) as ScanResult | null;
+    if (cached) {
+      toast({
+        title: "Using Cached Result",
+        description: "Recent scan result found in cache",
       });
+      return cached;
     }
 
-    let status: 'safe' | 'suspicious' | 'malicious' = 'safe';
-    if (detections > 3) status = 'malicious';
-    else if (detections > 0) status = 'suspicious';
+    try {
+      const response = await supabase.functions.invoke('scan-url', {
+        body: { url: targetUrl }
+      });
 
-    return {
-      url: targetUrl,
-      status,
-      detections,
-      totalEngines: engines.length,
-      timestamp: new Date().toISOString(),
-      engines,
-    };
+      if (response.error) {
+        throw new Error(response.error.message || 'Failed to scan URL');
+      }
+
+      // Cache the result for 10 minutes
+      urlScanCache.set(cacheKey, response.data, 10);
+      return response.data;
+    } catch (error) {
+      console.error('URL scan error:', error);
+      throw error;
+    }
   };
 
-  const handleScan = async () => {
+  const handleScan = useCallback(async () => {
     if (!url.trim()) {
       toast({
         title: "URL Required",
@@ -218,7 +154,7 @@ const UrlScanner = () => {
     setScanResult(null);
 
     try {
-      const result = await mockScan(url);
+      const result = await retry(() => scanUrl(url));
       setScanResult(result);
       
       toast({
@@ -234,7 +170,7 @@ const UrlScanner = () => {
     } finally {
       setIsScanning(false);
     }
-  };
+  }, [url, retry]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -293,7 +229,7 @@ const UrlScanner = () => {
               {isScanning ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Scanning...
+                  {isRetrying ? `Retrying... (${attempt}/3)` : 'Scanning...'}
                 </>
               ) : (
                 <>
@@ -387,4 +323,4 @@ const UrlScanner = () => {
   );
 };
 
-export default UrlScanner;
+export default React.memo(UrlScanner);
